@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta http-equiv="Content-Security-Policy" content="base-uri 'none'; form-action 'none'">
+    <title>inferdiff Relay Radar</title>
+    <link rel="stylesheet" href="popup.css">
+    <script type="module" src="popup.js"></script>
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="identity">
+        <img class="logo" src="icons/icon48.png" width="42" height="42" alt="">
+        <div>
+          <span class="wordmark">inferdiff</span>
+          <h1>Relay Radar</h1>
+        </div>
+      </div>
+      <div class="languages" role="group" data-aria="languages" aria-label="Language">
+        <button type="button" id="lang-en" lang="en" aria-pressed="true">EN</button>
+        <button type="button" id="lang-zh" lang="zh-Hans" aria-pressed="false">中文</button>
+      </div>
+    </header>
+
+    <main>
+      <form id="check-form" novalidate>
+        <fieldset id="target-fields">
+          <legend class="sr-only" data-copy="targetFields">API endpoint settings</legend>
+          <div class="presets" role="group" data-aria="presets" aria-label="Provider presets">
+            <button type="button" data-preset="openai" aria-pressed="true">OpenAI</button>
+            <button type="button" data-preset="deepseek" aria-pressed="false">DeepSeek</button>
+            <button type="button" data-preset="openrouter" aria-pressed="false">OpenRouter</button>
+            <button type="button" data-preset="siliconflow" aria-pressed="false">SiliconFlow</button>
+            <button type="button" data-preset="ollama" aria-pressed="false">Ollama</button>
+            <button type="button" data-preset="llama" aria-pressed="false">llama-server</button>
+          </div>
+          <label class="field">
+            <span data-copy="baseUrl">Base URL</span>
+            <input id="base-url" type="text" inputmode="url" required autocomplete="off" spellcheck="false" autocapitalize="off">
+          </label>
+          <div class="field-row">
+            <label class="field">
+              <span data-copy="model">Model</span>
+              <input id="model" type="text" required autocomplete="off" spellcheck="false" autocapitalize="off">
+            </label>
+            <label class="field">
+              <span data-copy="apiKey">API key</span>
+              <input id="api-key" type="password" autocomplete="off" spellcheck="false" data-placeholder="keyPlaceholder" placeholder="If required">
+            </label>
+          </div>
+          <label class="remember">
+            <input id="remember-key" type="checkbox">
+            <span data-copy="rememberKey">Remember key for this browser session</span>
+          </label>
+        </fieldset>
+        <button id="run-check" class="run" type="submit">
+          <span class="pulse" aria-hidden="true">↗</span>
+          <span id="run-label">Run Check</span>
+        </button>
+      </form>
+
+      <div class="progress-row">
+        <progress id="progress" value="0" max="4" data-aria="progress" aria-label="Probe progress"></progress>
+        <output id="progress-count" for="progress">0 / 4</output>
+      </div>
+      <p id="feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+
+      <section class="results" aria-labelledby="results-title">
+        <div class="summary">
+          <div class="summary-grade">
+            <h2 id="results-title" data-copy="wireHealth">Wire health</h2>
+            <output id="grade" class="grade">—</output>
+          </div>
+          <dl class="metrics">
+            <div><dt>P0</dt><dd id="p0">—</dd></div>
+            <div><dt>P1</dt><dd id="p1">—</dd></div>
+            <div><dt>TTFT</dt><dd id="ttft">—</dd></div>
+          </dl>
+        </div>
+        <p id="model-mismatch" class="mismatch" hidden></p>
+
+        <div class="probes">
+          <article class="probe" data-probe="C1" data-status="pending">
+            <div class="probe-meta"><span class="probe-id">C1</span><span class="probe-status"></span><span class="latency"></span></div>
+            <h3 data-copy="C1">Truncation honesty</h3>
+            <p class="finding" hidden></p>
+          </article>
+          <article class="probe" data-probe="C4" data-status="pending">
+            <div class="probe-meta"><span class="probe-id">C4</span><span class="probe-status"></span><span class="latency"></span></div>
+            <h3 data-copy="C4">Usage accounting</h3>
+            <p class="finding" hidden></p>
+          </article>
+          <article class="probe" data-probe="C6" data-status="pending">
+            <div class="probe-meta"><span class="probe-id">C6</span><span class="probe-status"></span><span class="latency"></span></div>
+            <h3 data-copy="C6">UTF-8 integrity</h3>
+            <p class="finding" hidden></p>
+          </article>
+          <article class="probe" data-probe="C7" data-status="pending">
+            <div class="probe-meta"><span class="probe-id">C7</span><span class="probe-status"></span><span class="latency"></span></div>
+            <h3 data-copy="C7">Stream buffering</h3>
+            <p class="finding" hidden></p>
+          </article>
+        </div>
+
+        <div class="report-actions">
+          <button id="copy-markdown" class="secondary" type="button" disabled data-copy="copyMarkdown">Copy Markdown</button>
+          <button id="export-json" class="secondary" type="button" disabled data-copy="exportJson">Export JSON</button>
+        </div>
+        <p id="export-feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+      </section>
+    </main>
+
+    <footer>
+      <a id="cloud-link" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">
+        <span data-copy="cloud">Watch 24/7 in inferdiff Cloud</span>
+        <span aria-hidden="true">↗</span>
+      </a>
+    </footer>
+  </body>
+</html>
