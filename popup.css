@@ -24,12 +24,12 @@ body {
   background: var(--base);
 }
 
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
-button:not(:disabled), input[type="checkbox"], a[href] { cursor: pointer; }
+button:not(:disabled), select:not(:disabled), a[href] { cursor: pointer; }
 button:disabled { cursor: default; opacity: .48; }
 
-button:focus-visible, input:focus-visible, a:focus-visible {
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
   outline: 2px solid var(--violet);
   outline-offset: 2px;
 }
@@ -138,7 +138,9 @@ fieldset:disabled { opacity: .75; }
   margin-top: 8px;
 }
 
-.field input {
+.protocol-field { margin-bottom: 8px; }
+
+.field input, .field select {
   width: 100%;
   min-width: 0;
   height: 32px;
@@ -153,18 +155,6 @@ fieldset:disabled { opacity: .75; }
 .field input::placeholder { color: #8794b0; }
 .field input[aria-invalid="true"] { border-color: var(--crimson); }
 
-.remember {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: fit-content;
-  margin: 8px 0 10px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.remember input { margin: 0; accent-color: var(--violet); }
-
 .run {
   display: flex;
   align-items: center;
@@ -172,6 +162,7 @@ fieldset:disabled { opacity: .75; }
   gap: 6px;
   width: 100%;
   min-height: 36px;
+  margin-top: 10px;
   border: 1px solid #ffc76b;
   border-radius: 8px;
   color: #1c1104;
@@ -289,6 +280,15 @@ h2 { font-size: 12px; font-weight: 700; white-space: nowrap; }
 
 .report-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
 .secondary { min-height: 27px; }
+.issue-action {
+  grid-column: 1 / -1;
+  min-height: 32px;
+  border-color: #a855f785;
+  background: #a855f719;
+  color: #e4c9ff;
+}
+
+.issue-action:not(:disabled):hover { background: #a855f732; }
 
 footer {
   padding: 8px 17px 10px;

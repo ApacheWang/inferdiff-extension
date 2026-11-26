@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "inferdiff Relay Radar",
   "version": "0.1.0",
-  "description": "Verify OpenAI-compatible streaming APIs and relays and export a wire health scorecard.",
+  "description": "Check OpenAI, Anthropic, and Gemini API streams and share redacted diagnostic reports.",
   "action": {
     "default_title": "inferdiff Relay Radar",
     "default_popup": "popup.html",

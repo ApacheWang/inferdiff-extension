@@ -1,30 +1,37 @@
 import { CLOUD_DESTINATION, PROVIDERS, destinationUrl } from './src/config.js';
-import { formatJSON, formatMarkdown, normalizeTarget, runChecks } from './src/probes.js';
+import { formatIssueMarkdown } from './src/issue-report.js';
+import { containsSuppliedCredential } from './src/privacy.js';
+import { detectProtocol, formatJSON, formatMarkdown, getProbeIds, normalizeTarget, runChecks } from './src/probes.js';
 
 const copy = {
   en: {
     languages: 'Language',
     targetFields: 'API endpoint settings',
     presets: 'Provider presets',
+    protocol: 'API protocol',
+    autoProtocol: 'Auto-detect from URL',
     baseUrl: 'Base URL',
     model: 'Model',
     apiKey: 'API key',
     keyPlaceholder: 'If required',
-    rememberKey: 'Remember key for this browser session',
     run: 'Run Check',
     checking: 'Checking…',
     progress: 'Probe progress',
     wireHealth: 'Wire health',
     C1: 'Truncation honesty',
     C4: 'Usage accounting',
+    C5: 'Role and tool indices',
     C6: 'UTF-8 integrity',
     C7: 'Stream buffering',
+    C9: 'Tool input truncation',
+    C10: 'Finish and stream integrity',
     pending: 'Ready',
     running: 'Running',
     pass: 'Pass',
     fail: 'Fail',
     inconclusive: 'Inconclusive',
     copyMarkdown: 'Copy Markdown',
+    copyIssue: 'Copy Redacted Issue Report',
     exportJson: 'Export JSON',
     cloud: 'Watch 24/7 in inferdiff Cloud',
     cloudDisabled: 'Set a valid inferdiff Cloud destination in src/config.js.',
@@ -32,29 +39,45 @@ const copy = {
     invalidModel: 'Enter a model ID.',
     invalidApiKey: 'Use a single-line API key.',
     keyCleared: 'The endpoint changed. Enter its API key if required.',
-    sessionError: 'Browser session storage is unavailable.',
     permission: 'Confirm browser access to this host.',
     denied: 'Host access was declined. Run the check again to request it.',
     permissionError: 'Could not request host access. Open Relay Radar from the browser toolbar and try again.',
     checkError: 'Could not finish the check. Verify the settings and try again.',
     complete: 'Check complete.',
     copied: 'Markdown copied.',
-    copyError: 'Clipboard access is unavailable. You can export the JSON report.',
+    issueCopied: 'Redacted Issue report copied.',
+    copyError: 'Clipboard access is unavailable.',
     exportError: 'Could not export the report.',
     mismatch: 'Model ID differs from the request. Reported',
     c1Clipped: 'Partial tool arguments ended with length.',
     c1InvalidFinish: 'Partial tool arguments require length for every finish reason.',
     c1NoClip: 'Tool arguments arrived complete. No truncation was observed.',
     c1NoArguments: 'No partial tool arguments to inspect.',
+    c1ResponsesClipped: 'The response correctly reported a token limit after incomplete tool arguments.',
+    c1ResponsesInvalidFinish: 'The response claimed completion with incomplete tool arguments.',
     c4Usage: 'Trailing frame contained positive token counts.',
     c4MissingUsage: 'The trailing usage frame was missing.',
     c4InvalidUsage: 'The trailing frame lacked valid positive token counts.',
+    c5NoChoice: 'No streamed choice was available to inspect.',
+    c5OpeningRole: 'The opening choice did not declare the assistant role.',
+    c5ToolIndices: 'Tool call indices were missing, invalid, or conflicting.',
+    c5Intact: 'The opening role and tool call indices were intact.',
     c6Intact: 'CJK and emoji arrived with no replacement characters.',
     c6Replacement: 'The stream contained U+FFFD replacement characters.',
     c6MissingSample: 'The stream did not include both Unicode samples.',
     c7Streaming: 'Delta timing passed the late-burst check.',
     c7Buffered: 'Content deltas arrived in a single late burst.',
     c7TooFewDeltas: 'Too few content deltas to measure buffering.',
+    c9InvalidFinish: 'The stream reported end_turn with incomplete tool input JSON.',
+    c9Clipped: 'The stream correctly reported a token limit for incomplete tool input.',
+    c9Complete: 'The stream finished with valid tool input or visible text.',
+    c9NoSample: 'No completed message with tool input or text was available to inspect.',
+    c10Empty: 'The stream reported STOP with no output.',
+    c10InvalidFinish: 'The stream reported STOP with evidence of truncation.',
+    c10Buffered: 'The output arrived in a single late burst before STOP.',
+    c10Clipped: 'The stream correctly reported a token limit.',
+    c10Complete: 'The stream reported STOP after output arrived.',
+    c10OtherFinish: 'The finish reason did not provide a completion sample.',
     badContentType: 'Response was not an SSE stream.',
     incompleteStream: 'The stream ended before the probe could verify it.',
     invalidSse: 'The stream contained a malformed SSE payload.',
@@ -68,25 +91,30 @@ const copy = {
     languages: '语言',
     targetFields: 'API 端点设置',
     presets: '服务商预设',
+    protocol: 'API 协议',
+    autoProtocol: '根据地址自动识别',
     baseUrl: '基础地址',
     model: '模型',
     apiKey: 'API 密钥',
     keyPlaceholder: '如需鉴权请填写',
-    rememberKey: '在本次浏览器会话中记住密钥',
     run: '一键验真',
     checking: '验真中…',
     progress: '探测进度',
     wireHealth: '协议健康评分',
     C1: '截断状态真实性',
     C4: '用量统计',
+    C5: '角色与工具调用索引',
     C6: 'UTF-8 完整性',
     C7: '流式缓冲检测',
+    C9: '工具输入截断',
+    C10: '结束状态与流式完整性',
     pending: '待测',
     running: '检测中',
     pass: '通过',
     fail: '失败',
     inconclusive: '证据不足',
     copyMarkdown: '复制论坛评测',
+    copyIssue: '复制脱敏 Issue 报告',
     exportJson: '导出 JSON',
     cloud: '升级 24/7 中转站监控',
     cloudDisabled: '请在 src/config.js 中设置有效的 inferdiff Cloud 地址。',
@@ -94,29 +122,45 @@ const copy = {
     invalidModel: '请输入模型 ID。',
     invalidApiKey: '请输入单行 API 密钥。',
     keyCleared: '端点已变更。如需鉴权，请输入新端点的 API 密钥。',
-    sessionError: '浏览器会话存储不可用。',
     permission: '请确认浏览器允许访问此主机。',
     denied: '主机访问权限未获批准。再次运行可重新申请。',
     permissionError: '无法申请主机访问权限。请从浏览器工具栏打开 Relay Radar 后重试。',
     checkError: '检测未完成。请检查设置后重试。',
     complete: '检测完成。',
     copied: '已复制 Markdown。',
-    copyError: '剪贴板不可用。可导出 JSON 报告。',
+    issueCopied: '已复制脱敏 Issue 报告。',
+    copyError: '剪贴板不可用。',
     exportError: '无法导出报告。',
     mismatch: '返回的模型 ID 与请求不同。返回模型',
     c1Clipped: '工具参数被截断，结束原因为 length。',
     c1InvalidFinish: '工具参数被截断时，所有结束原因均应为 length。',
     c1NoClip: '工具参数完整，本次未观察到截断。',
     c1NoArguments: '未收到可检查的截断工具参数。',
+    c1ResponsesClipped: '工具参数未完成，响应正确报告了 token 上限。',
+    c1ResponsesInvalidFinish: '工具参数未完成，响应却报告已完成。',
     c4Usage: '尾部用量帧中包含正数 token 计数。',
     c4MissingUsage: '缺少尾部用量帧。',
     c4InvalidUsage: '尾部帧缺少有效的正数 token 计数。',
+    c5NoChoice: '未收到可检查的流式选项。',
+    c5OpeningRole: '首个选项未声明 assistant 角色。',
+    c5ToolIndices: '工具调用索引缺失、无效或冲突。',
+    c5Intact: '首个角色与工具调用索引均有效。',
     c6Intact: '中日韩字符与表情均完整，无替换字符。',
     c6Replacement: '流中出现 U+FFFD 替换字符。',
     c6MissingSample: '流中未同时出现两种 Unicode 样本。',
     c7Streaming: '内容增量的到达时序通过集中缓冲检测。',
     c7Buffered: '内容增量在接近结束时集中到达。',
     c7TooFewDeltas: '内容增量过少，无法评估缓冲。',
+    c9InvalidFinish: '工具输入 JSON 不完整，流却报告了 end_turn。',
+    c9Clipped: '工具输入不完整，流正确报告了 token 上限。',
+    c9Complete: '流正常结束，工具输入有效或包含可见文本。',
+    c9NoSample: '未收到包含工具输入或文本的完整消息。',
+    c10Empty: '流报告了 STOP，但没有输出。',
+    c10InvalidFinish: '流报告了 STOP，但输出存在截断迹象。',
+    c10Buffered: '流报告 STOP 前，输出在接近结束时集中到达。',
+    c10Clipped: '流正确报告了 token 上限。',
+    c10Complete: '流在输出到达后报告了 STOP。',
+    c10OtherFinish: '当前结束原因无法用于验证正常完成。',
     badContentType: '响应不是 SSE 流。',
     incompleteStream: '流在验证完成前中断。',
     invalidSse: '流中包含格式无效的 SSE 数据。',
@@ -131,29 +175,26 @@ const copy = {
 const get = id => document.getElementById(id);
 const form = get('check-form');
 const targetFields = get('target-fields');
+const protocolSelect = get('protocol');
 const baseUrlInput = get('base-url');
 const modelInput = get('model');
 const keyInput = get('api-key');
-const rememberKey = get('remember-key');
 const runButton = get('run-check');
 const progressBar = get('progress');
 const feedback = get('feedback');
 const exportFeedback = get('export-feedback');
 const copyButton = get('copy-markdown');
+const issueButton = get('copy-issue');
 const jsonButton = get('export-json');
 const cloud = get('cloud-link');
 const presets = [...document.querySelectorAll('[data-preset]')];
 const cards = [...document.querySelectorAll('[data-probe]')];
 const platform = globalThis.chrome;
-const session = platform?.storage?.session;
 const local = platform?.storage?.local;
-const sessionName = 'radarRememberedTarget';
 const languageName = 'radarLanguage';
 
 let language = 'en';
 let languageChanged = false;
-let sessionTouched = false;
-let keyEndpoint = null;
 let running = false;
 let report = null;
 const probeProgress = new Map();
@@ -169,26 +210,8 @@ function setFeedback(element, name, kind = 'info') {
   element.hidden = !name;
 }
 
-function currentEndpoint() {
-  try {
-    return normalizeTarget(baseUrlInput.value);
-  } catch {
-    return null;
-  }
-}
-
-function storeSession() {
-  const key = keyInput.value.trim();
-  const endpoint = currentEndpoint();
-  const save = rememberKey.checked && key && endpoint === keyEndpoint;
-  const record = save ? {
-    endpoint,
-    key,
-    baseUrl: baseUrlInput.value.trim(),
-    model: modelInput.value.trim(),
-  } : null;
-  const operation = record ? session?.set({ [sessionName]: record }) : session?.remove(sessionName);
-  operation?.catch(() => setFeedback(feedback, 'sessionError', 'error'));
+function selectedProtocol() {
+  return protocolSelect.value === 'auto' ? detectProtocol(baseUrlInput.value) : protocolSelect.value;
 }
 
 function updatePreset() {
@@ -199,25 +222,19 @@ function updatePreset() {
 }
 
 function handleTargetChange() {
-  sessionTouched = true;
   baseUrlInput.removeAttribute('aria-invalid');
   modelInput.removeAttribute('aria-invalid');
   updatePreset();
-  const endpoint = currentEndpoint();
-  if (keyInput.value && keyEndpoint && keyEndpoint !== endpoint) {
+  clearReport();
+  if (keyInput.value) {
     keyInput.value = '';
-    keyEndpoint = null;
-    rememberKey.checked = false;
     setFeedback(feedback, 'keyCleared');
   }
-  if (keyInput.value && !keyEndpoint) {
-    keyEndpoint = endpoint;
-  }
-  storeSession();
 }
 
 function usePreset(name) {
   const preset = PROVIDERS[name];
+  protocolSelect.value = 'auto';
   baseUrlInput.value = destinationUrl(preset);
   modelInput.value = preset.model;
   updatePreset();
@@ -227,14 +244,17 @@ function formatMs(value) {
   return Number.isFinite(value) ? Math.round(value) + ' ms' : '—';
 }
 
-function renderProgress(completed = 0, total = cards.length) {
+function renderProgress(completed = 0, total = getProbeIds(selectedProtocol()).length) {
   progressBar.value = completed;
   progressBar.max = total;
   get('progress-count').value = completed + ' / ' + total;
 }
 
 function renderCards() {
+  const activeIds = getProbeIds(report?.protocol ?? selectedProtocol());
   for (const card of cards) {
+    card.hidden = !activeIds.includes(card.dataset.probe);
+    if (card.hidden) continue;
     const progress = probeProgress.get(card.dataset.probe);
     const status = progress?.status ?? 'pending';
     const result = progress?.result;
@@ -269,6 +289,7 @@ function renderSummary() {
     ? message('mismatch') + ' · ' + report.reportedModels.join(', ')
     : '';
   copyButton.disabled = !report;
+  issueButton.disabled = !report;
   jsonButton.disabled = !report;
 }
 
@@ -280,7 +301,7 @@ function renderLanguage() {
   for (const element of document.querySelectorAll('[data-aria]')) {
     element.setAttribute('aria-label', message(element.dataset.aria));
   }
-  keyInput.placeholder = message(keyInput.dataset.placeholder);
+  keyInput.placeholder = message('keyPlaceholder');
   get('lang-en').setAttribute('aria-pressed', String(language === 'en'));
   get('lang-zh').setAttribute('aria-pressed', String(language === 'zh'));
   get('run-label').textContent = message(running ? 'checking' : 'run');
@@ -313,50 +334,54 @@ function onProgress({ completed, total, probeId, status, result }) {
   renderCards();
 }
 
-async function checkEndpoint(event) {
-  event.preventDefault();
-  if (running) return;
-  sessionTouched = true;
-  setFeedback(feedback, null);
-  const endpoint = currentEndpoint();
-  if (!endpoint) {
-    setFeedback(feedback, 'invalidBaseUrl', 'error');
-    baseUrlInput.setAttribute('aria-invalid', 'true');
-    baseUrlInput.focus();
-    return;
-  }
-  const model = modelInput.value.trim();
-  if (!model) {
-    setFeedback(feedback, 'invalidModel', 'error');
-    modelInput.setAttribute('aria-invalid', 'true');
-    modelInput.focus();
-    return;
-  }
-  const apiKey = keyInput.value.trim();
-  if (apiKey && keyEndpoint && keyEndpoint !== endpoint) {
-    handleTargetChange();
-    keyInput.focus();
-    return;
-  }
-  if (/[\r\n]/u.test(apiKey)) {
-    setFeedback(feedback, 'invalidApiKey', 'error');
-    keyInput.focus();
-    return;
-  }
-
+function clearReport() {
   report = null;
   probeProgress.clear();
   renderProgress();
   renderSummary();
   renderCards();
   setFeedback(exportFeedback, null);
+}
+
+async function checkEndpoint(event) {
+  event.preventDefault();
+  if (running) return;
+  setFeedback(feedback, null);
+  const protocol = selectedProtocol();
+  const model = modelInput.value.trim();
+  if (!model && protocol !== 'gemini') {
+    setFeedback(feedback, 'invalidModel', 'error');
+    modelInput.setAttribute('aria-invalid', 'true');
+    modelInput.focus();
+    return;
+  }
+  const apiKey = keyInput.value.trim();
+  if (/[\r\n]/u.test(apiKey)) {
+    setFeedback(feedback, 'invalidApiKey', 'error');
+    keyInput.focus();
+    return;
+  }
+  let endpoint;
+  try {
+    endpoint = normalizeTarget(baseUrlInput.value, protocol, model);
+    if (containsSuppliedCredential(endpoint, apiKey)) throw new Error('Credential in endpoint');
+  } catch {
+    const input = model ? baseUrlInput : modelInput;
+    setFeedback(feedback, model ? 'invalidBaseUrl' : 'invalidModel', 'error');
+    input.setAttribute('aria-invalid', 'true');
+    input.focus();
+    return;
+  }
+
+  keyInput.value = '';
+  clearReport();
   setFeedback(feedback, 'permission');
   setRunning(true);
 
   try {
     const target = new URL(endpoint);
     // Match patterns with an omitted port cover every port on this host.
-    const origin = target.origin + '/*';
+    const origin = `${target.protocol}//${target.hostname}/*`;
     let allowed;
     try {
       // Call directly from the submit gesture so the browser can show its prompt.
@@ -370,7 +395,7 @@ async function checkEndpoint(event) {
       return;
     }
     setFeedback(feedback, null);
-    report = await runChecks({ baseUrl: endpoint, model, apiKey, onProgress });
+    report = await runChecks({ baseUrl: endpoint, protocol, model, apiKey, onProgress });
     for (const result of report.probes) {
       probeProgress.set(result.id, { status: result.status, result });
     }
@@ -385,11 +410,11 @@ async function checkEndpoint(event) {
   }
 }
 
-async function copyReport() {
+async function copyReport(format, successMessage) {
   if (!report) return;
   try {
-    await navigator.clipboard.writeText(formatMarkdown(report));
-    setFeedback(exportFeedback, 'copied', 'success');
+    await navigator.clipboard.writeText(format(report));
+    setFeedback(exportFeedback, successMessage, 'success');
   } catch {
     setFeedback(exportFeedback, 'copyError', 'error');
   }
@@ -421,22 +446,14 @@ for (const button of presets) {
   });
 }
 baseUrlInput.addEventListener('input', handleTargetChange);
+protocolSelect.addEventListener('change', handleTargetChange);
 modelInput.addEventListener('input', () => {
-  sessionTouched = true;
   modelInput.removeAttribute('aria-invalid');
-  if (rememberKey.checked) storeSession();
-});
-keyInput.addEventListener('input', () => {
-  sessionTouched = true;
-  keyEndpoint = currentEndpoint();
-  if (rememberKey.checked) storeSession();
-});
-rememberKey.addEventListener('change', () => {
-  sessionTouched = true;
-  storeSession();
+  clearReport();
 });
 form.addEventListener('submit', checkEndpoint);
-copyButton.addEventListener('click', copyReport);
+copyButton.addEventListener('click', () => copyReport(formatMarkdown, 'copied'));
+issueButton.addEventListener('click', () => copyReport(formatIssueMarkdown, 'issueCopied'));
 jsonButton.addEventListener('click', downloadReport);
 
 try {
@@ -445,22 +462,14 @@ try {
   cloud.setAttribute('aria-disabled', 'true');
 }
 
-rememberKey.disabled = !session;
+// Remove a legacy credential record without reading it into this popup.
+platform?.storage?.session?.remove('radarRememberedTarget').catch(() => {});
 usePreset('openai');
+renderProgress();
 renderLanguage();
 local?.get(languageName).then(saved => {
   if (!languageChanged && saved[languageName] === 'zh') {
     language = 'zh';
     renderLanguage();
   }
-}).catch(() => {});
-session?.get(sessionName).then(saved => {
-  const record = saved[sessionName];
-  if (sessionTouched || !record?.key || normalizeTarget(record.baseUrl) !== record.endpoint) return;
-  baseUrlInput.value = record.baseUrl;
-  modelInput.value = record.model;
-  keyInput.value = record.key;
-  keyEndpoint = record.endpoint;
-  rememberKey.checked = true;
-  updatePreset();
 }).catch(() => {});

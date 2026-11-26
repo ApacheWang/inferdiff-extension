@@ -36,6 +36,16 @@
             <button type="button" data-preset="ollama" aria-pressed="false">Ollama</button>
             <button type="button" data-preset="llama" aria-pressed="false">llama-server</button>
           </div>
+          <label class="field protocol-field">
+            <span data-copy="protocol">API protocol</span>
+            <select id="protocol">
+              <option value="auto" data-copy="autoProtocol">Auto-detect from URL</option>
+              <option value="openai-chat">OpenAI Chat Completions</option>
+              <option value="openai-responses">OpenAI Responses</option>
+              <option value="anthropic">Anthropic Messages</option>
+              <option value="gemini">Gemini SSE</option>
+            </select>
+          </label>
           <label class="field">
             <span data-copy="baseUrl">Base URL</span>
             <input id="base-url" type="text" inputmode="url" required autocomplete="off" spellcheck="false" autocapitalize="off">
@@ -47,13 +57,9 @@
             </label>
             <label class="field">
               <span data-copy="apiKey">API key</span>
-              <input id="api-key" type="password" autocomplete="off" spellcheck="false" data-placeholder="keyPlaceholder" placeholder="If required">
+              <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="If required">
             </label>
           </div>
-          <label class="remember">
-            <input id="remember-key" type="checkbox">
-            <span data-copy="rememberKey">Remember key for this browser session</span>
-          </label>
         </fieldset>
         <button id="run-check" class="run" type="submit">
           <span class="pulse" aria-hidden="true">↗</span>
@@ -62,8 +68,8 @@
       </form>
 
       <div class="progress-row">
-        <progress id="progress" value="0" max="4" data-aria="progress" aria-label="Probe progress"></progress>
-        <output id="progress-count" for="progress">0 / 4</output>
+        <progress id="progress" value="0" max="5" data-aria="progress" aria-label="Probe progress"></progress>
+        <output id="progress-count" for="progress">0 / 5</output>
       </div>
       <p id="feedback" class="feedback" role="status" aria-live="polite" hidden></p>
 
@@ -92,6 +98,11 @@
             <h3 data-copy="C4">Usage accounting</h3>
             <p class="finding" hidden></p>
           </article>
+          <article class="probe" data-probe="C5" data-status="pending">
+            <div class="probe-meta"><span class="probe-id">C5</span><span class="probe-status"></span><span class="latency"></span></div>
+            <h3 data-copy="C5">Role and tool indices</h3>
+            <p class="finding" hidden></p>
+          </article>
           <article class="probe" data-probe="C6" data-status="pending">
             <div class="probe-meta"><span class="probe-id">C6</span><span class="probe-status"></span><span class="latency"></span></div>
             <h3 data-copy="C6">UTF-8 integrity</h3>
@@ -102,9 +113,20 @@
             <h3 data-copy="C7">Stream buffering</h3>
             <p class="finding" hidden></p>
           </article>
+          <article class="probe" data-probe="C9" data-status="pending" hidden>
+            <div class="probe-meta"><span class="probe-id">C9</span><span class="probe-status"></span><span class="latency"></span></div>
+            <h3 data-copy="C9">Tool input truncation</h3>
+            <p class="finding" hidden></p>
+          </article>
+          <article class="probe" data-probe="C10" data-status="pending" hidden>
+            <div class="probe-meta"><span class="probe-id">C10</span><span class="probe-status"></span><span class="latency"></span></div>
+            <h3 data-copy="C10">Finish and stream integrity</h3>
+            <p class="finding" hidden></p>
+          </article>
         </div>
 
         <div class="report-actions">
+          <button id="copy-issue" class="secondary issue-action" type="button" disabled data-copy="copyIssue">Copy Redacted Issue Report</button>
           <button id="copy-markdown" class="secondary" type="button" disabled data-copy="copyMarkdown">Copy Markdown</button>
           <button id="export-json" class="secondary" type="button" disabled data-copy="exportJson">Export JSON</button>
         </div>
