@@ -24,113 +24,229 @@
       </div>
     </header>
 
+    <div class="tabs" role="tablist" data-aria="radarTabs" aria-label="Relay Radar views">
+      <button type="button" id="tab-check" role="tab" aria-selected="true" aria-controls="panel-check" data-copy="checkTab">Check</button>
+      <button type="button" id="tab-compare" role="tab" aria-selected="false" aria-controls="panel-compare" tabindex="-1" data-copy="compareTab">PK Compare</button>
+      <button type="button" id="tab-audit" role="tab" aria-selected="false" aria-controls="panel-audit" tabindex="-1" data-copy="auditTab">Offline Audit</button>
+    </div>
+
     <main>
-      <form id="check-form" novalidate>
-        <fieldset id="target-fields">
-          <legend class="sr-only" data-copy="targetFields">API endpoint settings</legend>
-          <div class="presets" role="group" data-aria="presets" aria-label="Provider presets">
-            <button type="button" data-preset="openai" aria-pressed="true">OpenAI</button>
-            <button type="button" data-preset="deepseek" aria-pressed="false">DeepSeek</button>
-            <button type="button" data-preset="openrouter" aria-pressed="false">OpenRouter</button>
-            <button type="button" data-preset="siliconflow" aria-pressed="false">SiliconFlow</button>
-            <button type="button" data-preset="ollama" aria-pressed="false">Ollama</button>
-            <button type="button" data-preset="llama" aria-pressed="false">llama-server</button>
-          </div>
-          <label class="field protocol-field">
-            <span data-copy="protocol">API protocol</span>
-            <select id="protocol">
-              <option value="auto" data-copy="autoProtocol">Auto-detect from URL</option>
-              <option value="openai-chat">OpenAI Chat Completions</option>
-              <option value="openai-responses">OpenAI Responses</option>
-              <option value="anthropic">Anthropic Messages</option>
-              <option value="gemini">Gemini SSE</option>
-            </select>
-          </label>
-          <label class="field">
-            <span data-copy="baseUrl">Base URL</span>
-            <input id="base-url" type="text" inputmode="url" required autocomplete="off" spellcheck="false" autocapitalize="off">
-          </label>
-          <div class="field-row">
-            <label class="field">
-              <span data-copy="model">Model</span>
-              <input id="model" type="text" required autocomplete="off" spellcheck="false" autocapitalize="off">
+      <section id="panel-check" role="tabpanel" aria-labelledby="tab-check">
+        <form id="check-form" novalidate autocomplete="off">
+          <fieldset id="target-fields">
+            <legend class="sr-only" data-copy="targetFields">API endpoint settings</legend>
+            <div class="presets" role="group" data-aria="presets" aria-label="Provider presets">
+              <button type="button" data-preset="openai" aria-pressed="true">OpenAI</button>
+              <button type="button" data-preset="deepseek" aria-pressed="false">DeepSeek</button>
+              <button type="button" data-preset="openrouter" aria-pressed="false">OpenRouter</button>
+              <button type="button" data-preset="siliconflow" aria-pressed="false">SiliconFlow</button>
+              <button type="button" data-preset="ollama" aria-pressed="false">Ollama</button>
+              <button type="button" data-preset="llama" aria-pressed="false">llama-server</button>
+            </div>
+            <label class="field protocol-field">
+              <span data-copy="protocol">API protocol</span>
+              <select id="protocol">
+                <option value="auto" data-copy="autoProtocol">Auto-detect from URL</option>
+                <option value="openai-chat">OpenAI Chat Completions</option>
+                <option value="openai-responses">OpenAI Responses</option>
+                <option value="anthropic">Anthropic Messages</option>
+                <option value="gemini">Gemini SSE</option>
+              </select>
             </label>
             <label class="field">
-              <span data-copy="apiKey">API key</span>
-              <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="If required">
+              <span data-copy="baseUrl">Base URL</span>
+              <input id="base-url" type="text" inputmode="url" required autocomplete="off" spellcheck="false" autocapitalize="off">
             </label>
+            <div class="field-row">
+              <label class="field">
+                <span data-copy="model">Model</span>
+                <input id="model" type="text" required autocomplete="off" spellcheck="false" autocapitalize="off">
+              </label>
+              <label class="field">
+                <span data-copy="apiKey">API key</span>
+                <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="If required">
+              </label>
+            </div>
+          </fieldset>
+          <button id="run-check" class="run" type="submit">
+            <span class="pulse" aria-hidden="true">↗</span>
+            <span id="run-label">Run Check</span>
+          </button>
+        </form>
+
+        <div class="progress-row">
+          <progress id="progress" value="0" max="5" data-aria="progress" aria-label="Probe progress"></progress>
+          <output id="progress-count" for="progress">0 / 5</output>
+        </div>
+        <p id="feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+
+        <section class="results" aria-labelledby="results-title">
+          <div class="summary">
+            <div class="summary-grade">
+              <h2 id="results-title" data-copy="wireHealth">Wire health</h2>
+              <output id="grade" class="grade">—</output>
+            </div>
+            <dl class="metrics">
+              <div><dt>P0</dt><dd id="p0">—</dd></div>
+              <div><dt>P1</dt><dd id="p1">—</dd></div>
+              <div><dt>TTFT</dt><dd id="ttft">—</dd></div>
+            </dl>
           </div>
-        </fieldset>
-        <button id="run-check" class="run" type="submit">
-          <span class="pulse" aria-hidden="true">↗</span>
-          <span id="run-label">Run Check</span>
-        </button>
-      </form>
+          <p id="model-mismatch" class="mismatch" hidden></p>
 
-      <div class="progress-row">
-        <progress id="progress" value="0" max="5" data-aria="progress" aria-label="Probe progress"></progress>
-        <output id="progress-count" for="progress">0 / 5</output>
-      </div>
-      <p id="feedback" class="feedback" role="status" aria-live="polite" hidden></p>
-
-      <section class="results" aria-labelledby="results-title">
-        <div class="summary">
-          <div class="summary-grade">
-            <h2 id="results-title" data-copy="wireHealth">Wire health</h2>
-            <output id="grade" class="grade">—</output>
+          <div class="probes">
+            <article class="probe" data-probe="C1" data-status="pending">
+              <div class="probe-meta"><span class="probe-id">C1</span><span class="probe-status"></span><span class="latency"></span></div>
+              <h3 data-copy="C1">Truncation honesty</h3>
+              <p class="finding" hidden></p>
+            </article>
+            <article class="probe" data-probe="C4" data-status="pending">
+              <div class="probe-meta"><span class="probe-id">C4</span><span class="probe-status"></span><span class="latency"></span></div>
+              <h3 data-copy="C4">Usage accounting</h3>
+              <p class="finding" hidden></p>
+            </article>
+            <article class="probe" data-probe="C5" data-status="pending">
+              <div class="probe-meta"><span class="probe-id">C5</span><span class="probe-status"></span><span class="latency"></span></div>
+              <h3 data-copy="C5">Role and tool indices</h3>
+              <p class="finding" hidden></p>
+            </article>
+            <article class="probe" data-probe="C6" data-status="pending">
+              <div class="probe-meta"><span class="probe-id">C6</span><span class="probe-status"></span><span class="latency"></span></div>
+              <h3 data-copy="C6">UTF-8 integrity</h3>
+              <p class="finding" hidden></p>
+            </article>
+            <article class="probe" data-probe="C7" data-status="pending">
+              <div class="probe-meta"><span class="probe-id">C7</span><span class="probe-status"></span><span class="latency"></span></div>
+              <h3 data-copy="C7">Stream buffering</h3>
+              <p class="finding" hidden></p>
+            </article>
+            <article class="probe" data-probe="C9" data-status="pending" hidden>
+              <div class="probe-meta"><span class="probe-id">C9</span><span class="probe-status"></span><span class="latency"></span></div>
+              <h3 data-copy="C9">Tool input truncation</h3>
+              <p class="finding" hidden></p>
+            </article>
+            <article class="probe" data-probe="C10" data-status="pending" hidden>
+              <div class="probe-meta"><span class="probe-id">C10</span><span class="probe-status"></span><span class="latency"></span></div>
+              <h3 data-copy="C10">Finish and stream integrity</h3>
+              <p class="finding" hidden></p>
+            </article>
           </div>
-          <dl class="metrics">
-            <div><dt>P0</dt><dd id="p0">—</dd></div>
-            <div><dt>P1</dt><dd id="p1">—</dd></div>
-            <div><dt>TTFT</dt><dd id="ttft">—</dd></div>
-          </dl>
-        </div>
-        <p id="model-mismatch" class="mismatch" hidden></p>
 
-        <div class="probes">
-          <article class="probe" data-probe="C1" data-status="pending">
-            <div class="probe-meta"><span class="probe-id">C1</span><span class="probe-status"></span><span class="latency"></span></div>
-            <h3 data-copy="C1">Truncation honesty</h3>
-            <p class="finding" hidden></p>
-          </article>
-          <article class="probe" data-probe="C4" data-status="pending">
-            <div class="probe-meta"><span class="probe-id">C4</span><span class="probe-status"></span><span class="latency"></span></div>
-            <h3 data-copy="C4">Usage accounting</h3>
-            <p class="finding" hidden></p>
-          </article>
-          <article class="probe" data-probe="C5" data-status="pending">
-            <div class="probe-meta"><span class="probe-id">C5</span><span class="probe-status"></span><span class="latency"></span></div>
-            <h3 data-copy="C5">Role and tool indices</h3>
-            <p class="finding" hidden></p>
-          </article>
-          <article class="probe" data-probe="C6" data-status="pending">
-            <div class="probe-meta"><span class="probe-id">C6</span><span class="probe-status"></span><span class="latency"></span></div>
-            <h3 data-copy="C6">UTF-8 integrity</h3>
-            <p class="finding" hidden></p>
-          </article>
-          <article class="probe" data-probe="C7" data-status="pending">
-            <div class="probe-meta"><span class="probe-id">C7</span><span class="probe-status"></span><span class="latency"></span></div>
-            <h3 data-copy="C7">Stream buffering</h3>
-            <p class="finding" hidden></p>
-          </article>
-          <article class="probe" data-probe="C9" data-status="pending" hidden>
-            <div class="probe-meta"><span class="probe-id">C9</span><span class="probe-status"></span><span class="latency"></span></div>
-            <h3 data-copy="C9">Tool input truncation</h3>
-            <p class="finding" hidden></p>
-          </article>
-          <article class="probe" data-probe="C10" data-status="pending" hidden>
-            <div class="probe-meta"><span class="probe-id">C10</span><span class="probe-status"></span><span class="latency"></span></div>
-            <h3 data-copy="C10">Finish and stream integrity</h3>
-            <p class="finding" hidden></p>
-          </article>
+          <div class="report-actions">
+            <button id="copy-issue" class="secondary issue-action" type="button" disabled data-copy="copyIssue">Copy Redacted Issue Report</button>
+            <button id="copy-markdown" class="secondary" type="button" disabled data-copy="copyMarkdown">Copy Markdown</button>
+            <button id="export-json" class="secondary" type="button" disabled data-copy="exportJson">Export JSON</button>
+          </div>
+          <p id="export-feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+        </section>
+      </section>
+
+      <section id="panel-compare" role="tabpanel" aria-labelledby="tab-compare" hidden>
+        <form id="compare-form" novalidate autocomplete="off">
+          <fieldset id="compare-fields" class="compare-grid">
+            <legend class="sr-only" data-copy="targetFields">API endpoint settings</legend>
+            <fieldset class="endpoint">
+              <legend data-copy="endpointA">Endpoint A</legend>
+              <label class="field">
+                <span data-copy="protocol">API protocol</span>
+                <select id="pk-protocol-a"></select>
+              </label>
+              <label class="field">
+                <span data-copy="baseUrl">Base URL</span>
+                <input id="pk-url-a" inputmode="url" autocomplete="off" spellcheck="false" autocapitalize="off">
+              </label>
+              <label class="field">
+                <span data-copy="model">Model</span>
+                <input id="pk-model-a" autocomplete="off" spellcheck="false" autocapitalize="off">
+              </label>
+              <label class="field">
+                <span data-copy="apiKey">API key</span>
+                <input id="pk-key-a" type="password" autocomplete="off" spellcheck="false" placeholder="If required">
+              </label>
+            </fieldset>
+            <fieldset class="endpoint">
+              <legend data-copy="endpointB">Endpoint B</legend>
+              <label class="field">
+                <span data-copy="protocol">API protocol</span>
+                <select id="pk-protocol-b"></select>
+              </label>
+              <label class="field">
+                <span data-copy="baseUrl">Base URL</span>
+                <input id="pk-url-b" inputmode="url" autocomplete="off" spellcheck="false" autocapitalize="off">
+              </label>
+              <label class="field">
+                <span data-copy="model">Model</span>
+                <input id="pk-model-b" autocomplete="off" spellcheck="false" autocapitalize="off">
+              </label>
+              <label class="field">
+                <span data-copy="apiKey">API key</span>
+                <input id="pk-key-b" type="password" autocomplete="off" spellcheck="false" placeholder="If required">
+              </label>
+            </fieldset>
+          </fieldset>
+          <button id="run-compare" class="run" type="submit" data-copy="runCompare">Run PK Compare</button>
+        </form>
+        <p id="compare-feedback" class="feedback" role="status" hidden></p>
+
+        <div id="compare-scoreboard" class="results" hidden>
+          <div id="compare-summary" class="summary" hidden>
+            <div class="summary-grade">
+              <h2 data-copy="winner">Winner</h2>
+              <output id="compare-winner" class="grade">—</output>
+            </div>
+            <dl class="metrics">
+              <div><dt data-copy="ttftDelta">TTFT Δ (B − A)</dt><dd id="compare-delta">—</dd></div>
+            </dl>
+          </div>
+          <div id="compare-cards" class="compare-grid"></div>
+          <div class="report-actions">
+            <button id="copy-pk" class="secondary issue-action" type="button" disabled data-copy="copyPk">Copy Redacted PK Card</button>
+          </div>
+          <p id="pk-feedback" class="feedback" role="status" hidden></p>
         </div>
 
-        <div class="report-actions">
-          <button id="copy-issue" class="secondary issue-action" type="button" disabled data-copy="copyIssue">Copy Redacted Issue Report</button>
-          <button id="copy-markdown" class="secondary" type="button" disabled data-copy="copyMarkdown">Copy Markdown</button>
-          <button id="export-json" class="secondary" type="button" disabled data-copy="exportJson">Export JSON</button>
+        <template id="compare-card-template">
+          <article class="compare-card">
+            <div class="summary-grade"><h2 class="endpoint-label"></h2><span class="grade">—</span></div>
+            <div class="progress-row"><progress value="0" max="1"></progress><span class="probe-count">0 / 0</span></div>
+            <dl class="metrics compare-metrics">
+              <div><dt data-copy="passedProbes">Passed probes</dt><dd class="passed">—</dd></div>
+              <div><dt data-copy="effectiveTtft">Effective TTFT</dt><dd class="ttft">—</dd></div>
+              <div><dt>P0</dt><dd class="p0">—</dd></div>
+              <div><dt>P1</dt><dd class="p1">—</dd></div>
+            </dl>
+          </article>
+        </template>
+      </section>
+
+      <section id="panel-audit" role="tabpanel" aria-labelledby="tab-audit" hidden>
+        <label class="field protocol-field">
+          <span data-copy="protocol">API protocol</span>
+          <select id="audit-protocol"></select>
+        </label>
+        <label class="field">
+          <span data-copy="auditSource">Raw SSE or .trace.jsonl</span>
+          <textarea id="audit-source" rows="7" autocomplete="off" spellcheck="false" autocapitalize="off" aria-describedby="audit-help"></textarea>
+        </label>
+        <p id="audit-help" class="input-help" data-copy="auditHelp">Paste a stream to audit it locally. No network requests are made.</p>
+        <div class="audit-options">
+          <label class="usage-option"><input id="audit-usage" type="checkbox"> <span data-copy="usageRequested">Usage requested (Chat Completions)</span></label>
+          <button id="clear-audit" class="secondary" type="button" disabled data-copy="clearPaste">Clear paste</button>
         </div>
-        <p id="export-feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+        <section id="audit-results" class="results" aria-labelledby="audit-title" hidden>
+          <div class="summary">
+            <div class="summary-grade">
+              <h2 id="audit-title" class="sr-only" data-copy="auditVerdict">Audit verdict</h2>
+              <output id="audit-verdict" class="grade audit-grade">—</output>
+            </div>
+            <dl class="metrics"><div><dt data-copy="frames">Frames</dt><dd id="audit-frames">—</dd></div></dl>
+          </div>
+          <ul id="audit-findings" class="audit-findings"></ul>
+          <div class="report-actions">
+            <button id="copy-audit" class="secondary issue-action" type="button" disabled data-copy="copyIssue">Copy Redacted Issue Report</button>
+          </div>
+          <p id="audit-feedback" class="feedback" role="status" hidden></p>
+        </section>
       </section>
     </main>
 

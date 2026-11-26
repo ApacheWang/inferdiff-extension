@@ -13,6 +13,10 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parent
 ICON_PATHS = {str(size): f"icons/icon{size}.png" for size in (16, 48, 128)}
 POPUP_FILES = ("popup.html", "popup.css", "popup.js")
+REQUIRED_MODULES = {
+    "src/compare.js", "src/config.js", "src/issue-report.js", "src/offline-audit.js",
+    "src/privacy.js", "src/probes.js",
+}
 HOST_PERMISSIONS = ["https://*/*", "http://127.0.0.1/*", "http://localhost/*"]
 JS_SUFFIXES = {".js", ".mjs"}
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -143,8 +147,8 @@ def runtime_files(root):
         if path.is_file() and path.suffix in JS_SUFFIXES
         and not any(part.startswith(".") for part in path.relative_to(root).parts)
     )
-    require({Path("src/probes.js"), Path("src/config.js")}.issubset(modules),
-            "One or more runtime JavaScript modules are missing")
+    missing = REQUIRED_MODULES.difference(path.as_posix() for path in modules)
+    require(not missing, f"Missing runtime JavaScript modules: {', '.join(sorted(missing))}")
     for name in [*fixed, *modules]:
         path = root / name
         require(path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(root),

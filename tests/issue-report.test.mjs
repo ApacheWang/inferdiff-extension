@@ -4,6 +4,21 @@ import * as reports from '../src/issue-report.js';
 import { containsCredential, containsSuppliedCredential, createRedactor } from '../src/privacy.js';
 import { formatJSON, formatMarkdown, runChecks } from '../src/probes.js';
 
+test('clipboard options omit endpoint and model metadata from Check Markdown', () => {
+  const report = {
+    protocol: 'openai-chat', grade: 'A+', p0: 0, p1: 0, inconclusive: 0, ttftMs: 12, frameCount: 4,
+    endpoint: 'https://api.openai.com/private-path', requestedModel: 'opaque-secret-model',
+    reportedModels: ['private-response-fragment'], probes: [], modelMismatch: true,
+  };
+
+  const scorecard = formatMarkdown(report, { includeTarget: false });
+  const issue = reports.formatIssueMarkdown(report, { includeHost: false });
+  for (const markdown of [scorecard, issue]) {
+    assert.match(markdown, /Grade/);
+    assert.doesNotMatch(markdown, /api\.openai\.com|private-path|opaque-secret-model|private-response-fragment/);
+  }
+});
+
 test('Issue Markdown contains only compact redacted diagnostics', () => {
   const key = ['sk', 'fixture-only-token'].join('-');
   const content = 'private prompt and response fixture';

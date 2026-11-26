@@ -27,7 +27,7 @@ function count(value, unit = '') {
   return Number.isSafeInteger(value) && value >= 0 ? `${value}${unit}` : 'Unavailable';
 }
 
-export function formatIssueMarkdown(report) {
+export function formatIssueMarkdown(report, { includeHost = true } = {}) {
   const probes = Array.isArray(report.probes) ? report.probes : [];
   const breaches = BREACH_CODES.filter(id => probes.some(probe => probe?.id === id && probe.status === 'fail'));
   return [
@@ -38,6 +38,6 @@ export function formatIssueMarkdown(report) {
     `- Breach codes: ${breaches.join(', ') || 'None'}`,
     `- SSE frames: ${count(report.frameCount)}`,
     `- TTFT: ${count(report.ttftMs, ' ms')}`,
-    `- Host: ${redactedHost(report.endpoint)}`,
+    ...(includeHost ? [`- Host: ${redactedHost(report.endpoint)}`] : []),
   ].join('\n');
 }

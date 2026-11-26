@@ -264,6 +264,8 @@ test('normalizes an API base or an existing completion endpoint without duplicat
 });
 
 test('rejects public cleartext and URL-embedded credentials and parameters', () => {
+  assert.throws(() => normalizeTarget('https://*'));
+  assert.throws(() => normalizeTarget('https://%2A.example'));
   const rejectedTargets = [
     'http://relay.example/v1',
     'https://user:secret@relay.example/v1',

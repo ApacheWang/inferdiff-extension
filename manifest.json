@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "inferdiff Relay Radar",
-  "version": "0.1.0",
-  "description": "Check OpenAI, Anthropic, and Gemini API streams and share redacted diagnostic reports.",
+  "version": "0.2.0",
+  "description": "Check and compare live API streams, audit captured SSE offline, and share redacted diagnostics.",
   "action": {
     "default_title": "inferdiff Relay Radar",
     "default_popup": "popup.html",

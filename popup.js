@@ -1,6 +1,8 @@
+import { formatPkMarkdown, prepareCompareTargets, runComparison } from './src/compare.js';
 import { CLOUD_DESTINATION, PROVIDERS, destinationUrl } from './src/config.js';
 import { formatIssueMarkdown } from './src/issue-report.js';
-import { containsSuppliedCredential } from './src/privacy.js';
+import { auditOffline, formatOfflineIssueMarkdown } from './src/offline-audit.js';
+import { containsCredential, containsSuppliedCredential } from './src/privacy.js';
 import { detectProtocol, formatJSON, formatMarkdown, getProbeIds, normalizeTarget, runChecks } from './src/probes.js';
 
 const copy = {
@@ -86,6 +88,42 @@ const copy = {
     timeout: 'The request timed out.',
     networkError: 'The request failed. Check the endpoint and access.',
     responseTooLarge: 'The response exceeded the local safety limit.',
+    radarTabs: 'Relay Radar views',
+    checkTab: 'Check',
+    compareTab: 'PK Compare',
+    auditTab: 'Offline Audit',
+    endpointA: 'Endpoint A',
+    endpointB: 'Endpoint B',
+    runCompare: 'Run PK Compare',
+    comparing: 'Comparing endpoints…',
+    compareDone: 'Comparison complete.',
+    winner: 'Winner',
+    tie: 'Tie',
+    passedProbes: 'Passed probes',
+    effectiveTtft: 'Effective TTFT',
+    ttftDelta: 'TTFT Δ (B − A)',
+    copyPk: 'Copy Redacted PK Card',
+    pkCopied: 'Redacted PK card copied.',
+    autoAuditProtocol: 'Auto-detect from stream',
+    auditSource: 'Raw SSE or .trace.jsonl',
+    auditHelp: 'Paste a stream to audit it locally. No network requests are made.',
+    usageRequested: 'Usage requested (Chat Completions)',
+    clearPaste: 'Clear paste',
+    auditVerdict: 'Audit verdict',
+    frames: 'Frames',
+    auditPass: 'A+ · Pass',
+    auditWarn: 'WARN · Review',
+    auditBreach: 'F P0 BREACH',
+    auditClean: 'No breaches detected.',
+    D1: 'The stream claimed completion with malformed or incomplete tool arguments.',
+    D2: 'The stream contains a U+FFFD replacement character.',
+    D3: 'Multiple tool calls used the same index.',
+    D4: 'The requested usage frame was missing.',
+    auditC9: 'Anthropic reported end_turn with malformed or incomplete tool input.',
+    auditC10: 'Gemini reported STOP with empty or malformed output or conflicting finish reasons.',
+    unrecognized: 'No supported stream frames were recognized.',
+    malformed: 'Some pasted frames could not be parsed.',
+    incomplete: 'The paste lacks a terminal frame for this protocol.',
   },
   zh: {
     languages: '语言',
@@ -169,6 +207,42 @@ const copy = {
     timeout: '请求超时。',
     networkError: '请求失败，请检查端点与访问权限。',
     responseTooLarge: '响应大小超过本地上限。',
+    radarTabs: 'Relay Radar 功能',
+    checkTab: '验真',
+    compareTab: '中转站 PK',
+    auditTab: '离线审计',
+    endpointA: '端点 A',
+    endpointB: '端点 B',
+    runCompare: '开始 PK 对比',
+    comparing: '正在对比端点…',
+    compareDone: '对比完成。',
+    winner: '胜方',
+    tie: '平局',
+    passedProbes: '通过探针',
+    effectiveTtft: '有效 TTFT',
+    ttftDelta: 'TTFT 差值（B − A）',
+    copyPk: '复制脱敏 PK 卡片',
+    pkCopied: '已复制脱敏 PK 卡片。',
+    autoAuditProtocol: '根据流内容自动识别',
+    auditSource: '原始 SSE 或 .trace.jsonl',
+    auditHelp: '粘贴流数据即可在本地审计，过程无需联网。',
+    usageRequested: '已请求用量统计（Chat Completions）',
+    clearPaste: '清空',
+    auditVerdict: '审计结果',
+    frames: '帧数',
+    auditPass: 'A+ · 通过',
+    auditWarn: 'WARN · 需检查',
+    auditBreach: 'F P0 BREACH · 严重异常',
+    auditClean: '未检测到异常。',
+    D1: '工具参数格式错误或不完整，但流报告已完成。',
+    D2: '流中出现 U+FFFD 替换字符。',
+    D3: '多个工具调用使用了相同索引。',
+    D4: '缺少已请求的用量帧。',
+    auditC9: '工具输入格式错误或不完整，但 Anthropic 报告了 end_turn。',
+    auditC10: 'Gemini 报告 STOP，但输出为空、格式错误或结束状态冲突。',
+    unrecognized: '未识别到受支持的流数据帧。',
+    malformed: '部分粘贴的帧无法解析。',
+    incomplete: '粘贴内容缺少该协议的结束帧。',
   },
 };
 
@@ -189,6 +263,14 @@ const jsonButton = get('export-json');
 const cloud = get('cloud-link');
 const presets = [...document.querySelectorAll('[data-preset]')];
 const cards = [...document.querySelectorAll('[data-probe]')];
+const tabs = [...document.querySelectorAll('[role="tab"]')];
+const compareFields = get('compare-fields');
+const compareFeedback = get('compare-feedback');
+const pkFeedback = get('pk-feedback');
+const auditSource = get('audit-source');
+const auditProtocol = get('audit-protocol');
+const auditUsage = get('audit-usage');
+const auditFeedback = get('audit-feedback');
 const platform = globalThis.chrome;
 const local = platform?.storage?.local;
 const languageName = 'radarLanguage';
@@ -198,6 +280,24 @@ let languageChanged = false;
 let running = false;
 let report = null;
 const probeProgress = new Map();
+let compareRunning = false;
+let comparison = null;
+let audit = null;
+const endpoints = ['A', 'B'].map(side => {
+  const suffix = side.toLowerCase();
+  const card = get('compare-card-template').content.firstElementChild.cloneNode(true);
+  get('compare-cards').append(card);
+  return {
+    side, card, progress: null,
+    url: get(`pk-url-${suffix}`), model: get(`pk-model-${suffix}`),
+    key: get(`pk-key-${suffix}`), protocol: get(`pk-protocol-${suffix}`),
+  };
+});
+
+for (const select of [auditProtocol, ...endpoints.map(endpoint => endpoint.protocol)]) {
+  select.replaceChildren(...Array.from(protocolSelect.options, option => option.cloneNode(true)));
+}
+auditProtocol.options[0].dataset.copy = 'autoAuditProtocol';
 
 function message(name) {
   return copy[language][name] ?? '';
@@ -244,6 +344,21 @@ function formatMs(value) {
   return Number.isFinite(value) ? Math.round(value) + ' ms' : '—';
 }
 
+function hostAccess(endpoints) {
+  const origins = new Set(endpoints.map(endpoint => {
+    const { protocol, hostname } = new URL(endpoint);
+    // Match patterns with an omitted port cover every port on this host.
+    return `${protocol}//${hostname}/*`;
+  }));
+  return platform.permissions.request({ origins: [...origins] });
+}
+
+function renderGrade(element, grade) {
+  element.textContent = grade ?? '—';
+  element.dataset.tone = grade?.startsWith('A') ? 'healthy' : grade === 'F' ? 'failed' : 'mixed';
+  if (!grade) delete element.dataset.tone;
+}
+
 function renderProgress(completed = 0, total = getProbeIds(selectedProtocol()).length) {
   progressBar.value = completed;
   progressBar.max = total;
@@ -273,13 +388,7 @@ function renderCards() {
 }
 
 function renderSummary() {
-  const grade = get('grade');
-  grade.value = report?.grade ?? '—';
-  if (report) {
-    grade.dataset.tone = report.grade.startsWith('A') ? 'healthy' : report.grade === 'F' ? 'failed' : 'mixed';
-  } else {
-    delete grade.dataset.tone;
-  }
+  renderGrade(get('grade'), report?.grade);
   get('p0').textContent = report?.p0 ?? '—';
   get('p1').textContent = report?.p1 ?? '—';
   get('ttft').textContent = formatMs(report?.ttftMs);
@@ -301,17 +410,22 @@ function renderLanguage() {
   for (const element of document.querySelectorAll('[data-aria]')) {
     element.setAttribute('aria-label', message(element.dataset.aria));
   }
-  keyInput.placeholder = message('keyPlaceholder');
+  for (const key of [keyInput, ...endpoints.map(endpoint => endpoint.key)]) {
+    key.placeholder = message('keyPlaceholder');
+  }
   get('lang-en').setAttribute('aria-pressed', String(language === 'en'));
   get('lang-zh').setAttribute('aria-pressed', String(language === 'zh'));
   get('run-label').textContent = message(running ? 'checking' : 'run');
   if (cloud.getAttribute('aria-disabled') === 'true') {
     cloud.title = message('cloudDisabled');
   }
-  setFeedback(feedback, feedback.dataset.message, feedback.dataset.kind);
-  setFeedback(exportFeedback, exportFeedback.dataset.message, exportFeedback.dataset.kind);
+  for (const status of [feedback, exportFeedback, compareFeedback, pkFeedback, auditFeedback]) {
+    setFeedback(status, status.dataset.message, status.dataset.kind);
+  }
   renderSummary();
   renderCards();
+  renderCompare();
+  renderAudit();
 }
 
 function setLanguage(value) {
@@ -347,15 +461,17 @@ async function checkEndpoint(event) {
   event.preventDefault();
   if (running) return;
   setFeedback(feedback, null);
+  const apiKey = keyInput.value.trim();
+  keyInput.value = '';
   const protocol = selectedProtocol();
   const model = modelInput.value.trim();
-  if (!model && protocol !== 'gemini') {
+  if ((!model && protocol !== 'gemini') || containsCredential(model)
+    || (apiKey && (model === apiKey || containsSuppliedCredential(model, apiKey)))) {
     setFeedback(feedback, 'invalidModel', 'error');
     modelInput.setAttribute('aria-invalid', 'true');
     modelInput.focus();
     return;
   }
-  const apiKey = keyInput.value.trim();
   if (/[\r\n]/u.test(apiKey)) {
     setFeedback(feedback, 'invalidApiKey', 'error');
     keyInput.focus();
@@ -373,19 +489,14 @@ async function checkEndpoint(event) {
     return;
   }
 
-  keyInput.value = '';
   clearReport();
   setFeedback(feedback, 'permission');
   setRunning(true);
 
   try {
-    const target = new URL(endpoint);
-    // Match patterns with an omitted port cover every port on this host.
-    const origin = `${target.protocol}//${target.hostname}/*`;
     let allowed;
     try {
-      // Call directly from the submit gesture so the browser can show its prompt.
-      allowed = await platform.permissions.request({ origins: [origin] });
+      allowed = await hostAccess([endpoint]);
     } catch {
       setFeedback(feedback, 'permissionError', 'error');
       return;
@@ -410,13 +521,166 @@ async function checkEndpoint(event) {
   }
 }
 
-async function copyReport(format, successMessage) {
-  if (!report) return;
+function selectTab(selected) {
+  for (const tab of tabs) {
+    const active = tab === selected;
+    tab.tabIndex = active ? 0 : -1;
+    tab.setAttribute('aria-selected', String(active));
+    get(tab.getAttribute('aria-controls')).hidden = !active;
+  }
+}
+
+function renderCompare() {
+  const button = get('run-compare');
+  button.disabled = compareRunning;
+  button.textContent = message(compareRunning ? 'comparing' : 'runCompare');
+  compareFields.disabled = compareRunning;
+  get('copy-pk').disabled = !comparison;
+  get('compare-scoreboard').hidden = !compareRunning && !comparison;
+  get('compare-summary').hidden = !comparison;
+
+  const winner = get('compare-winner');
+  winner.textContent = comparison?.winner === 'Tie' ? message('tie') : comparison?.winner ?? '—';
+  winner.dataset.tone = comparison?.winner === 'Tie' ? 'mixed' : 'healthy';
+  const delta = comparison?.ttftDeltaMs;
+  get('compare-delta').textContent = (delta > 0 ? '+' : '') + formatMs(delta);
+
+  for (const { side, card, progress } of endpoints) {
+    const outcome = comparison?.[side.toLowerCase()];
+    const label = message(`endpoint${side}`);
+    card.querySelector('.endpoint-label').textContent = label;
+    card.classList.toggle('winner-card', comparison?.winner === side);
+    renderGrade(card.querySelector('.grade'), outcome?.grade);
+    const bar = card.querySelector('progress');
+    bar.max = progress?.total || 1;
+    bar.value = progress?.completed ?? 0;
+    bar.setAttribute('aria-label', `${label} · ${message('progress')}`);
+    card.querySelector('.progress-row').hidden = !compareRunning;
+    card.querySelector('.probe-count').textContent = `${bar.value} / ${progress?.total ?? 0}`;
+    card.querySelector('.passed').textContent = outcome ? `${outcome.passed} / ${outcome.probeCount}` : '—';
+    card.querySelector('.ttft').textContent = formatMs(outcome?.ttftMs);
+    card.querySelector('.p0').textContent = outcome?.p0 ?? '—';
+    card.querySelector('.p1').textContent = outcome?.p1 ?? '—';
+  }
+}
+
+function clearComparison() {
+  comparison = null;
+  setFeedback(compareFeedback, null);
+  setFeedback(pkFeedback, null);
+  renderCompare();
+}
+
+async function compareEndpoints(event) {
+  event.preventDefault();
+  if (compareRunning) return;
+  clearComparison();
+  const inputs = endpoints.map(({ url, model, key, protocol }) => {
+    const target = { baseUrl: url.value, model: model.value, apiKey: key.value, protocol: protocol.value };
+    key.value = '';
+    return target;
+  });
+
+  let targets;
   try {
-    await navigator.clipboard.writeText(format(report));
-    setFeedback(exportFeedback, successMessage, 'success');
+    targets = prepareCompareTargets(...inputs);
+  } catch (error) {
+    const field = { invalidBaseUrl: 'url', invalidModel: 'model', invalidApiKey: 'key' }[error?.code];
+    const endpoint = endpoints.find(({ side }) => side === error?.side);
+    setFeedback(compareFeedback, field ? error.code : 'checkError', 'error');
+    if (field && endpoint) {
+      endpoint[field].setAttribute('aria-invalid', 'true');
+      endpoint[field].focus();
+    }
+    return;
+  }
+
+  compareRunning = true;
+  endpoints.forEach((endpoint, index) => {
+    endpoint.progress = { completed: 0, total: getProbeIds(targets[index].protocol).length };
+  });
+  renderCompare();
+  setFeedback(compareFeedback, 'permission');
+  try {
+    let allowed;
+    try {
+      allowed = await hostAccess(targets.map(target => target.baseUrl));
+    } catch {
+      setFeedback(compareFeedback, 'permissionError', 'error');
+      return;
+    }
+    if (!allowed) {
+      setFeedback(compareFeedback, 'denied', 'error');
+      return;
+    }
+
+    setFeedback(compareFeedback, null);
+    comparison = await runComparison(...targets, {
+      onProgress(side, progress) {
+        endpoints.find(endpoint => endpoint.side === side).progress = progress;
+        renderCompare();
+      },
+    });
+    setFeedback(compareFeedback, 'compareDone', 'success');
   } catch {
-    setFeedback(exportFeedback, 'copyError', 'error');
+    setFeedback(compareFeedback, 'checkError', 'error');
+  } finally {
+    compareRunning = false;
+    renderCompare();
+  }
+}
+
+function renderAudit() {
+  get('clear-audit').disabled = !auditSource.value;
+  get('audit-results').hidden = !audit;
+  get('copy-audit').disabled = !audit;
+  if (!audit) return;
+
+  const pass = audit.verdict === 'A+';
+  const warn = audit.verdict === 'WARN';
+  const verdict = get('audit-verdict');
+  verdict.textContent = message(pass ? 'auditPass' : warn ? 'auditWarn' : 'auditBreach');
+  verdict.dataset.tone = pass ? 'healthy' : warn ? 'mixed' : 'failed';
+  get('audit-frames').textContent = audit.frameCount;
+
+  const findings = get('audit-findings');
+  findings.replaceChildren();
+  if (audit.findings.length === 0) {
+    const item = document.createElement('li');
+    item.textContent = message('auditClean');
+    findings.append(item);
+  }
+  for (const { code, severity } of audit.findings) {
+    const item = document.createElement('li');
+    const badge = document.createElement('span');
+    const description = document.createElement('span');
+    const finding = { C9: 'auditC9', C10: 'auditC10' }[code] ?? code;
+    badge.className = 'audit-code';
+    badge.dataset.severity = severity;
+    badge.textContent = severity === 'WARN' ? 'WARN' : `${code} · ${severity}`;
+    description.textContent = message(finding);
+    item.append(badge, description);
+    findings.append(item);
+  }
+}
+
+function auditPaste() {
+  const protocol = auditProtocol.value;
+  auditUsage.disabled = protocol !== 'auto' && protocol !== 'openai-chat';
+  audit = auditSource.value.trim() ? auditOffline(auditSource.value, {
+    protocol, includeUsage: auditUsage.checked && !auditUsage.disabled,
+  }) : null;
+  setFeedback(auditFeedback, null);
+  renderAudit();
+}
+
+async function copyReport(value, format, status, successMessage) {
+  if (!value) return;
+  try {
+    await navigator.clipboard.writeText(format(value));
+    setFeedback(status, successMessage, 'success');
+  } catch {
+    setFeedback(status, 'copyError', 'error');
   }
 }
 
@@ -452,9 +716,50 @@ modelInput.addEventListener('input', () => {
   clearReport();
 });
 form.addEventListener('submit', checkEndpoint);
-copyButton.addEventListener('click', () => copyReport(formatMarkdown, 'copied'));
-issueButton.addEventListener('click', () => copyReport(formatIssueMarkdown, 'issueCopied'));
+copyButton.addEventListener('click', () => copyReport(report,
+  value => formatMarkdown(value, { includeTarget: false }), exportFeedback, 'copied'));
+issueButton.addEventListener('click', () => copyReport(report,
+  value => formatIssueMarkdown(value, { includeHost: false }), exportFeedback, 'issueCopied'));
 jsonButton.addEventListener('click', downloadReport);
+
+for (const [index, tab] of tabs.entries()) {
+  tab.addEventListener('click', () => selectTab(tab));
+  tab.addEventListener('keydown', event => {
+    const target = {
+      ArrowLeft: tabs[(index + tabs.length - 1) % tabs.length],
+      ArrowRight: tabs[(index + 1) % tabs.length], Home: tabs[0], End: tabs.at(-1),
+    }[event.key];
+    if (!target) return;
+    event.preventDefault();
+    selectTab(target);
+    target.focus();
+  });
+}
+
+for (const { url, model, key, protocol } of endpoints) {
+  for (const field of [url, model, key, protocol]) {
+    field.addEventListener('input', () => {
+      for (const input of [url, model, key]) input.removeAttribute('aria-invalid');
+      clearComparison();
+      if ((field === url || field === protocol) && key.value) {
+        key.value = '';
+        setFeedback(compareFeedback, 'keyCleared');
+      }
+    });
+  }
+}
+get('compare-form').addEventListener('submit', compareEndpoints);
+get('copy-pk').addEventListener('click', () => copyReport(comparison, formatPkMarkdown, pkFeedback, 'pkCopied'));
+
+auditSource.addEventListener('input', auditPaste);
+auditProtocol.addEventListener('change', auditPaste);
+auditUsage.addEventListener('change', auditPaste);
+get('clear-audit').addEventListener('click', () => {
+  auditSource.value = '';
+  auditPaste();
+  auditSource.focus();
+});
+get('copy-audit').addEventListener('click', () => copyReport(audit, formatOfflineIssueMarkdown, auditFeedback, 'issueCopied'));
 
 try {
   cloud.href = destinationUrl(CLOUD_DESTINATION);

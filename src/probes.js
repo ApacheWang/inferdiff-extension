@@ -174,6 +174,7 @@ export function normalizeTarget(baseUrl, protocol = detectProtocol(baseUrl), mod
   if (url.protocol !== "https:" && !(loopback && url.protocol === "http:")) {
     throw new Error("Use HTTPS, or HTTP on localhost or 127.0.0.1.");
   }
+  if (url.hostname.includes("*")) throw new Error("Enter a specific API hostname.");
   if (url.username || url.password || url.href.includes("?") || url.href.includes("#") || containsCredential(url.href)) {
     throw new Error("Remove credentials, query parameters, and fragments from the base URL.");
   }
@@ -631,7 +632,7 @@ function milliseconds(value) {
 }
 
 /** The report returned by runChecks already contains only redacted diagnostic data. */
-export function formatMarkdown(report) {
+export function formatMarkdown(report, { includeTarget = true } = {}) {
   const rows = report.probes.map(probe => {
     const status = [probe.status, probe.severity].filter(Boolean).join(" / ");
     const evidence = [...probe.findings];
@@ -646,9 +647,11 @@ export function formatMarkdown(report) {
     "",
     `**Grade ${report.grade}** · ${report.p0} P0 · ${report.p1} P1 · ${report.inconclusive} inconclusive · TTFT ${milliseconds(report.ttftMs)}`,
     "",
-    `- Endpoint: ${markdownCell(report.endpoint)}`,
-    `- Requested model: ${markdownCell(report.requestedModel)}`,
-    `- Reported model(s): ${report.reportedModels.map(markdownCell).join(", ") || "Unavailable"}`,
+    ...(includeTarget ? [
+      `- Endpoint: ${markdownCell(report.endpoint)}`,
+      `- Requested model: ${markdownCell(report.requestedModel)}`,
+      `- Reported model(s): ${report.reportedModels.map(markdownCell).join(", ") || "Unavailable"}`,
+    ] : []),
     `- Model mismatch: ${report.modelMismatch ? "Yes (check for provider aliases)" : report.reportedModels.length ? "No" : "Unknown"}`,
     "",
     "| Probe | Status | TTFT | Findings |",
